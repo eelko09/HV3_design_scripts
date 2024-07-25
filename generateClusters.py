@@ -2,6 +2,7 @@
 
 import scipy.cluster.hierarchy as sch
 import seaborn as sns
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -116,6 +117,7 @@ def cluster(
 		kmer_dict_small = kt.kmerDictSet(smallD, kmer_size, ["X"])	# Generate kmers for small sequences
 		shortSeqNames = list(smallD.keys())
 
+		# Hierarchical clustering
 		if method == "Hierarchical":
 			for dt in distance_thresh:
 				clusters, hm = clusterSeqs(dists, dt, seqNames)	 # Cluster large sequences
@@ -126,6 +128,7 @@ def cluster(
 					plt.tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)
 					plt.axhline(y=dt, c='k')
 					plt.savefig(f"./{outName}/{vis_output_dir}/dendrogram_{os.path.basename(i)}_{dt}.png", dpi=300, bbox_inches='tight')
+					mpl.pyplot.close()
 
 				seq2clust = assignShortSequences(kmer_dict_small, kmer_dict, clusters, dt) if kmer_dict_small else {}
 				for clustNum, seqL in clusters.items():
@@ -155,31 +158,35 @@ def cluster(
 						 
 						 
 
-
+		# Louvain clustering
 		elif method == "Louvain":
 			# no distance threshold for louvain clustering
 			dt = 0
 
-			# Extract nodes and similarities
+			# Extract unique nodes from sequence similarity list
 			nodes = list(set([x[0] for x in seq_sim_list] + [x[1] for x in seq_sim_list]))
 			node_indices = {node: idx for idx, node in enumerate(nodes)}
 
-			# Create edge list
+			# Create edge list with node indices and similarities
 			edges = [(node_indices[a], node_indices[b], sim) for a, b, sim in seq_sim_list]
 
-			# Create adjacency matrix
+			# Create adjacency matrix from edge list
 			adjacency = skn.data.from_edge_list(edges)
 
+			# Perform Louvain clustering
 			louvain = skn.clustering.Louvain()
 			labels = louvain.fit_predict(adjacency)
 
+			# Generate visualization if required
 			if gen_vis:
 				image = skn.visualization.visualize_graph(adjacency, labels=labels, filename=f"{vis_output_dir}/visualization_{os.path.basename(i)}")
 
+			# Group sequences by cluster labels
 			clusters = defaultdict(list)
 			for idx, seqName in enumerate(nodes):
 				clusters[ labels[idx] ].append( seqName )
 
+			# Assign short sequences to clusters if provided
 			if len(kmer_dict_small) > 0:
 				# Start to assigning the short sequences to the clusters built using long sequences
 				seq2clust = assignShortSequences(kmer_dict_small, kmer_dict, clusters, dt)
@@ -187,6 +194,7 @@ def cluster(
 				# Make a dictionary linking a sequence name to its assigned cluster
 				seq2clust = {}
 
+			# Map sequence names to their assigned clusters
 			for clustNum, seqL in clusters.items():
 				for sn in seqL:
 					seq2clust[sn] = clustNum
@@ -194,7 +202,17 @@ def cluster(
 			# Add cluster numbers to output dictionary in order of seqNames
 			outD[dt] = [seq2clust[sn] for sn in seqNames + shortSeqNames]
 
+			# Output data to specified directory
 			output_data( outD, i, output_dir, seqNames + shortSeqNames )
+			
+			# Write cluster FASTA files
+			for clustNum in clusters:
+				outName = f"{output_dir}/cluster_{clustNum}.fasta"
+				if gene_info:
+					write_cluster_fastas(outName, clustNum, seq2clust, fD, gene_info, id2info)
+				else:
+					write_cluster_fastas(outName, clustNum, seq2clust, fD, gene_info)
+	
 
 		else:
 			raise Exception("Invalid method name provided.")
@@ -400,6 +418,7 @@ def make_boxplots(input_filename, dist_thresh, clusters, kmer_dict, outD, boxplo
 	ax.set_ylabel("Distance", fontsize=fontsize)
 	plt.grid()
 	plt.savefig(f"{input_filename}_{dist_thresh}_boxplot.png", dpi=300, bbox_inches='tight')
+	mpl.pyplot.close()
 
 def make_hist(input_filename, similarities, output_dir):
 	fig, ax = plt.subplots(figsize=(11,8.5), facecolor='w')
@@ -408,6 +427,7 @@ def make_hist(input_filename, similarities, output_dir):
 	plt.xlabel("similarity")
 	plt.ylabel("count")
 	plt.savefig(f"{input_filename}_histogram.png")
+	mpl.pyplot.close()
 	
 def extractGeneAnnotInfoTSV(file):
 	id2info = io.fileDictHeader(file,'SequenceName','Gene')
