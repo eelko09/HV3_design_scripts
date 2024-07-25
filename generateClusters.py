@@ -24,7 +24,7 @@ def main():
 	
 	# Required arguments
 	parser.add_argument("-i", "--input-files", nargs="+", default=[], required=True, help="Fasta files containing sequences to be clustered. One or more fasta files can be provided. Sequences in each will be separately clustered.")
-	#parser.add_argument("-o", "--output-dir", type=str, required=True, help="Directory to save cluster files. This directory will be created, if it doesn't already exist.")
+	parser.add_argument("-o", "--output-dir", type=str, required=False, help="Directory to save cluster files. This directory will be created, if it doesn't already exist.")
 
 	# Optional arguments
 	parser.add_argument("--method", type=str, required=False, default="Hierarchical", help="Method of generating clusters. Current options are: Hierarchical or Louvain")
@@ -66,7 +66,7 @@ def main():
 		hists_output_dir = args.hists_output_dir,
 		gen_vis = args.generate_vis,
 		vis_output_dir = args.vis_output_dir,
-		#output_dir = args.output_dir,
+		output_dir = args.output_dir,
 		clust_unassigned_short = args.clust_unassigned_short,
 		gene_info = info,
 		id2info=id2info)
@@ -87,13 +87,11 @@ def cluster(
 	hists_output_dir: str,
 	gen_vis: bool,
 	vis_output_dir: str,
-	#output_dir: str,
+	output_dir: str,
 	clust_unassigned_short: bool,
 	gene_info: bool,
 	id2info=None
 ) -> None:
-
-
 	for i in input_files:
 		# Format output directory name and create output directories
 		outName = i.replace('.fasta', '_clusters')
@@ -179,7 +177,7 @@ def cluster(
 
 			# Generate visualization if required
 			if gen_vis:
-				image = skn.visualization.visualize_graph(adjacency, labels=labels, filename=f"{vis_output_dir}/visualization_{os.path.basename(i)}")
+				image = skn.visualization.visualize_graph(adjacency, labels=labels, filename=f"./{outName}/{vis_output_dir}/visualization_{os.path.basename(i)}")
 
 			# Group sequences by cluster labels
 			clusters = defaultdict(list)
@@ -207,7 +205,6 @@ def cluster(
 			
 			# Write cluster FASTA files
 			for clustNum in clusters:
-				outName = f"{output_dir}/cluster_{clustNum}.fasta"
 				if gene_info:
 					write_cluster_fastas(outName, clustNum, seq2clust, fD, gene_info, id2info)
 				else:
@@ -373,7 +370,7 @@ def clustersBySpecies(clusters, speciesD):
 
 # Generate some summary statistics about the generated clusters
 def clusterStats(outD, inName, output_dir):
-	with open(f"{output_dir}/{inName}_summaryStats.tsv", "w") as fstats:
+	with open(f"{inName}_summaryStats.tsv", "w") as fstats:
 		fstats.write("Distance_Threshold\tNumberOfClusters\tAvgSeqsPerCluster\tSeqsUnassigned\n")
 		for dt, clustL in outD.items():
 			uniq = set(clustL).difference({""})
@@ -437,7 +434,7 @@ def extractGeneAnnotInfoTSV(file):
 def output_data( outD, i, output_dir, allSeqNames ):
 	# Write out results for this input file
 	outDF = pd.DataFrame(outD, index=allSeqNames)
-	outDF.to_csv(f"{output_dir}/clusters_{os.path.basename(i)}.tsv", sep="\t", index_label="Sequence")
+	outDF.to_csv(f"clusters_{os.path.basename(i)}.tsv", sep="\t", index_label="Sequence")
 	
 	# Summary statistics
 	clusterStats(outD, os.path.basename(i), output_dir)
